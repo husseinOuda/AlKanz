@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- frame-ancestors لا تعمل عبر <meta>؛ تُضبط كترويسة HTTP عند النشر (انظر docs/security-review.md) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>نظام المبيعات</title>
+<meta name="description" content="نظام مبيعات ومخزون يعمل دون اتصال بالكامل على جهازك.">
+<meta name="theme-color" content="#0C2444">
+<!-- البيان يُحقن من boot-guard.js: جلبه عبر file:// يفشل بخطأ CORS بلا فائدة -->
+<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<!-- preload الخطوط يُحقن من boot-guard.js: سمة crossorigin تفشل عبر file:// -->
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/print.css" media="print">
+<link rel="stylesheet" href="assets/css/print-thermal.css" media="not all" id="print-thermal-css">
+</head>
+<body>
+<a class="skip-link" href="#main-content">تخطٍ إلى المحتوى</a>
+
+<div id="app" class="app-shell" aria-busy="true">
+  <div class="boot" role="status">
+    <div class="boot__spinner" aria-hidden="true"></div>
+    <p class="boot__text">جارٍ تحميل النظام…</p>
+  </div>
+</div>
+
+<noscript>
+  <div class="noscript">هذا التطبيق يحتاج إلى تفعيل JavaScript في المتصفح.</div>
+</noscript>
+
+<div id="toast-region" class="toast-region" role="status" aria-live="polite" aria-atomic="false"></div>
+<div id="modal-region" class="modal-region" hidden></div>
+<div id="print-region" class="print-region" aria-hidden="true"></div>
+
+<!--
+  سكربت كلاسيكي يعمل في كل البروتوكولات، ويختار طريقة التحميل المناسبة:
+    · http/https ⇒ وحدات ES الأصلية (src/app.js) بلا أي بناء
+    · file://    ⇒ الحزمة الكلاسيكية (app.bundle.js) لأن المتصفح يحجب الوحدات هنا
+-->
+<script src="src/boot-guard.js"></script>
+</body>
+</html>

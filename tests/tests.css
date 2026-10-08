@@ -1,0 +1,43 @@
+/* تنسيق صفحة الاختبارات فقط — غير مضمّن في التطبيق. */
+
+.test-page { padding: 24px; max-width: 1100px; margin: 0 auto; background: var(--bg); }
+
+.test-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.test-head h1 { font-size: 22px; font-weight: 700; }
+
+.test-summary {
+  padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.test-summary.is-pass { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+.test-summary.is-fail { background: var(--red-soft); color: var(--red); border-color: var(--red); }
+
+.test-suite {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; margin-bottom: 14px; overflow: hidden;
+}
+.test-suite__head {
+  padding: 12px 18px; font-weight: 700; font-size: 15px;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; gap: 12px;
+}
+.test-suite__count { font-weight: 600; font-size: 13px; color: var(--text-2); }
+
+.test-case {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 18px; font-size: 13.5px; border-bottom: 1px solid var(--divider);
+}
+.test-case:last-child { border-bottom: none; }
+.test-case__mark { font-weight: 700; flex: none; width: 18px; }
+.test-case.is-pass .test-case__mark { color: var(--green); }
+.test-case.is-fail .test-case__mark { color: var(--red); }
+.test-case.is-fail { background: var(--red-soft); }
+.test-case__name { flex: 1; }
+.test-case__ms { color: var(--text-3); font-size: 12px; flex: none; }
+.test-case__error {
+  margin-top: 6px; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+  white-space: pre-wrap; color: var(--red-dark); direction: ltr; text-align: start;
+}

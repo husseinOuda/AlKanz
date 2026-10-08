@@ -1,0 +1,165 @@
+/* ==========================================================================
+   الطباعة — قالب A4 وقالب حراري 80mm
+   يُحمَّل بـ media="print" فقط، فلا يؤثر على العرض على الشاشة.
+   ========================================================================== */
+
+@page { size: A4; margin: 14mm; }
+
+/* حجم الورق الحراري في assets/css/print-thermal.css — يُفعَّل بتبديل media */
+
+/* أخفِ كل شيء عدا منطقة الطباعة */
+body > *:not(#print-region) { display: none !important; }
+
+#print-region {
+  display: block !important;
+  position: static !important;
+  width: 100%;
+  color: #000;
+  background: #fff;
+}
+
+.pr {
+  font-family: "Tajawal", "Segoe UI", "Noto Kufi Arabic", Tahoma, Arial, sans-serif;
+  color: #000;
+  background: #fff;
+  direction: rtl;
+}
+
+.pr bdi { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+
+/* -------------------------------- A4 -------------------------------- */
+
+.pr--a4 { font-size: 11pt; line-height: 1.55; }
+
+.pr--a4 .pr__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12mm;
+  padding-bottom: 4mm;
+  border-bottom: 1.5pt solid #000;
+  margin-bottom: 5mm;
+}
+.pr--a4 .pr__store { font-size: 16pt; font-weight: 700; margin-bottom: 2mm; }
+.pr--a4 .pr__doctitle { font-size: 13pt; font-weight: 700; margin-bottom: 2mm; }
+.pr--a4 .pr__meta { text-align: end; }
+.pr__line { font-size: 9.5pt; margin: 0.7mm 0; }
+.pr__sku { font-size: 8.5pt; color: #444; }
+
+.pr--a4 .pr__party {
+  padding: 3mm 4mm;
+  background: #F2F2F2;
+  border-radius: 2mm;
+  margin-bottom: 5mm;
+  font-size: 10.5pt;
+}
+
+.pr__table { width: 100%; border-collapse: collapse; margin-bottom: 5mm; }
+.pr__table th {
+  background: #EDEDED;
+  border: 0.5pt solid #999;
+  padding: 2.4mm 2.5mm;
+  font-size: 9.5pt;
+  font-weight: 700;
+  text-align: start;
+}
+.pr__table td {
+  border: 0.5pt solid #BBB;
+  padding: 2.2mm 2.5mm;
+  font-size: 9.5pt;
+  vertical-align: top;
+}
+.pr__table tr { break-inside: avoid; }
+.pr__table thead { display: table-header-group; }
+
+.pr--a4 .pr__totals {
+  width: 78mm;
+  margin-inline-start: auto;
+  border: 0.5pt solid #999;
+  border-radius: 2mm;
+  overflow: hidden;
+}
+.pr-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  padding: 2.2mm 3mm;
+  font-size: 10pt;
+}
+.pr-row + .pr-row { border-top: 0.5pt solid #DDD; }
+.pr-row--strong {
+  font-weight: 700;
+  font-size: 11.5pt;
+  background: #EDEDED;
+  border-top: 1pt solid #000 !important;
+}
+
+.pr__note {
+  margin-top: 5mm;
+  padding: 3mm;
+  border: 0.5pt dashed #999;
+  border-radius: 2mm;
+  font-size: 9.5pt;
+}
+
+.pr__foot {
+  margin-top: 8mm;
+  padding-top: 3mm;
+  border-top: 0.5pt solid #999;
+  text-align: center;
+  font-size: 9.5pt;
+}
+
+/* تقرير */
+.pr--report .pr__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3mm;
+  margin-bottom: 6mm;
+}
+.pr__stat { border: 0.5pt solid #999; border-radius: 2mm; padding: 3mm; }
+.pr__stat-label { font-size: 8.5pt; color: #444; margin-bottom: 1.5mm; }
+.pr__stat-value { font-size: 12pt; font-weight: 700; }
+.pr__section { margin-bottom: 6mm; break-inside: avoid; }
+.pr__subtitle {
+  font-size: 11.5pt;
+  font-weight: 700;
+  margin-bottom: 3mm;
+  padding-bottom: 1.5mm;
+  border-bottom: 0.5pt solid #999;
+}
+
+/* ---------------------------- حراري 80mm ---------------------------- */
+
+.pr--thermal {
+  width: 72mm;
+  margin: 0 auto;
+  font-size: 9pt;
+  line-height: 1.45;
+}
+.pr--thermal .pr__head { text-align: center; margin-bottom: 2mm; }
+.pr--thermal .pr__store { font-size: 12pt; font-weight: 700; margin-bottom: 1mm; }
+.pr--thermal .pr__line { font-size: 8pt; }
+
+.pr__rule { border-top: 1pt dashed #000; margin: 2mm 0; }
+
+.pr--thermal .pr__kv .pr__line { font-size: 8.5pt; }
+
+.pr__item { margin-bottom: 1.8mm; }
+.pr__item-name { font-size: 8.8pt; font-weight: 600; }
+.pr__item-line { display: flex; justify-content: space-between; font-size: 8.5pt; }
+
+.pr--thermal .pr__totals { border: none; width: 100%; }
+.pr--thermal .pr-row { padding: 0.8mm 0; font-size: 9pt; border: none; }
+.pr--thermal .pr-row--strong {
+  font-size: 11pt;
+  background: none;
+  border-top: 1pt solid #000 !important;
+  padding-top: 1.5mm;
+  margin-top: 1mm;
+}
+.pr--thermal .pr__foot {
+  margin-top: 3mm;
+  padding-top: 2mm;
+  border-top: 1pt dashed #000;
+  font-size: 8pt;
+}

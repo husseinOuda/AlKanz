@@ -1,0 +1,7 @@
+/* حجم صفحة الطابعة الحرارية.
+   ملف منفصل لأن @page لا يمكن استهدافها بسمة على body، وحقن <style> مضمّن
+   يخالف Content-Security-Policy. نبدّل سمة media لهذا الملف وقت الطباعة. */
+
+@page { size: 80mm auto; margin: 3mm; }
+
+body { margin: 0; }

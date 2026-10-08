@@ -1,0 +1,68 @@
+[
+  {
+    "id": "TC001",
+    "title": "Open dashboard and verify key metrics",
+    "description": "Verify the dashboard loads with sales summary and navigation items in a fresh browser session.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      "Open the application at http://localhost:8000",
+      "Wait for the dashboard to load",
+      "Confirm the main sales overview is visible",
+      "Confirm navigation to POS, products, invoices, customers, and reports is available"
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Create a product and keep it on stock",
+    "description": "Add a product with SKU, price, and stock so it is available to sell through the POS workflow.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      "Navigate to the products page",
+      "Add a new product with a unique SKU and barcode",
+      "Set a selling price and initial stock quantity",
+      "Save the product and verify it appears in the product list"
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Add product to POS cart and complete a cash sale",
+    "description": "Validate the main sales flow: add a product, adjust quantity, collect cash payment, and finalize a sale.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      "Open the POS screen",
+      "Search for the created product and add it to the cart",
+      "Confirm quantity and total amount are correct",
+      "Select cash payment and enter the payment amount",
+      "Complete the sale and verify the invoice is created"
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Verify inventory decreases after sale",
+    "description": "Confirm a successful sale updates the product stock and inventory ledger correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      "Navigate to the inventory or product detail view",
+      "Check the sold product stock count after the sale",
+      "Verify that the movement or inventory history shows the reduction",
+      "Confirm the sale is visible in the invoices list"
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Reopen invoice and confirm saved state",
+    "description": "Ensure invoice details remain persisted after the sale and are viewable later.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      "Open the invoices screen",
+      "Find the newly created invoice",
+      "Open its detail page",
+      "Verify product lines, total, status, and payment data match the sale"
+    ]
+  }
+]

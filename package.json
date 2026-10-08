@@ -1,0 +1,22 @@
+{
+  "name": "sales-system",
+  "version": "1.0.0",
+  "description": "نظام مبيعات ومخزون وفواتير عربي يعمل دون اتصال بالكامل — SPA + PWA بلا اعتماديات وقت تشغيل",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "start": "python -m http.server 8000",
+    "test": "node tools/run-tests.mjs",
+    "test:unit": "node tools/run-tests.mjs --unit-only",
+    "test:headed": "node tools/run-tests.mjs --headed",
+    "screenshots": "node tools/screenshot.mjs",
+    "screenshots:mobile": "node tools/screenshot.mjs --mobile"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18"
+  },
+  "comment": "لا توجد اعتماديات. يعمل التطبيق بالنقر المزدوج على index.html عبر app.bundle.js، وعبر خادم محلي بوحدات ES الأصلية. أعد بناء الحزمة بعد أي تعديل على src: npm run build"
+}
