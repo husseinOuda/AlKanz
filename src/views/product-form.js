@@ -148,6 +148,20 @@ export async function render(context) {
     value: String(existing?.lowStockThreshold ?? s.lowStockDefault),
   });
 
+  const minimumStockField = field({
+    label: 'الحد الأدنى للمخزون', name: 'minimumStock', type: 'number', min: '0',
+    value: String(existing?.minimumStock ?? existing?.lowStockThreshold ?? s.lowStockDefault),
+  });
+  const maximumStockField = field({
+    label: 'الحد الأقصى للمخزون', name: 'maximumStock', type: 'number', min: '0',
+    value: String(existing?.maximumStock ?? 0), hint: '0 يعني غير محدد',
+  });
+  const reorderPointField = field({
+    label: 'نقطة إعادة الطلب', name: 'reorderPoint', type: 'number', min: '0',
+    value: String(existing?.reorderPoint ?? existing?.lowStockThreshold ?? s.lowStockDefault),
+    hint: 'يظهر تنبيه إعادة الطلب عند وصول المخزون إلى هذه الكمية أو أقل.',
+  });
+
   const activeToggle = toggleField({ label: 'نشط', name: 'isActive', checked: existing?.isActive !== false });
 
   /* ------------------------------ رفع الصورة ------------------------------ */
@@ -223,6 +237,7 @@ export async function render(context) {
     name: nameField, sku: skuField, categoryId: categoryField, unit: unitField,
     cost: costField, price: priceField, taxRate: taxField,
     quantity: quantityField, lowStockThreshold: lowStockField,
+    minimumStock: minimumStockField, maximumStock: maximumStockField, reorderPoint: reorderPointField,
   };
 
   function clearErrors() {
@@ -242,6 +257,9 @@ export async function render(context) {
       taxRate: taxField.value,
       quantity: quantityField.value,
       lowStockThreshold: lowStockField.value,
+      minimumStock: minimumStockField.value,
+      maximumStock: maximumStockField.value,
+      reorderPoint: reorderPointField.value,
       isActive: activeToggle.checked,
       image: imageData,
     };
@@ -361,7 +379,7 @@ export async function render(context) {
         card({ title: 'صورة المنتج', body: imageHost }),
         card({
           title: 'المخزون',
-          body: h('div', { class: 'stack' }, quantityField.element, lowStockField.element),
+          body: h('div', { class: 'stack' }, quantityField.element, minimumStockField.element, maximumStockField.element, reorderPointField.element),
         }),
         card({
           body: h('div', { class: 'row', style: { 'justify-content': 'space-between' } },

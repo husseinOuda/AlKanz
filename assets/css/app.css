@@ -866,9 +866,9 @@ bdi, .ltr {
 .pos__search-row { display: flex; gap: var(--s3); margin-bottom: var(--s4); }
 .pos__search-row .search { flex: 1; }
 .pos__scan {
-  width: var(--field-h); height: var(--field-h); flex: none;
+  width: auto; min-height: var(--field-h); flex: none; padding: 0 12px; gap: 8px;
   border: 1px solid var(--border-strong); border-radius: var(--r-field);
-  background: var(--surface); display: grid; place-items: center; color: var(--text-2);
+  background: var(--surface); display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); white-space: nowrap;
 }
 .pos__scan:hover { background: var(--surface-2); color: var(--text); }
 .pos__scan .icon { width: 20px; height: 20px; }

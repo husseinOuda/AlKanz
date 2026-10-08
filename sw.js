@@ -11,7 +11,7 @@
  *  - الأصول: Cache First — الأصول مُصدَّرة مع الكاش، وأي تغيير يعني إصداراً جديداً.
  */
 
-const CACHE_VERSION = 'sales-v1';
+const CACHE_VERSION = 'sales-v4';
 const PRECACHE = `${CACHE_VERSION}-shell`;
 
 const SHELL_ASSETS = [
@@ -47,6 +47,7 @@ const SHELL_ASSETS = [
   'src/repositories/customers.js',
   'src/repositories/sales.js',
   'src/repositories/expenses.js',
+  'src/repositories/purchasing.js',
   'src/services/reports.js',
   'src/services/backup.js',
   'src/services/excel.js',
@@ -64,6 +65,8 @@ const SHELL_ASSETS = [
   'src/views/products.js',
   'src/views/product-form.js',
   'src/views/inventory.js',
+  'src/views/reorder.js',
+  'src/views/purchases.js',
   'src/views/invoices.js',
   'src/views/invoice-detail.js',
   'src/views/customers.js',

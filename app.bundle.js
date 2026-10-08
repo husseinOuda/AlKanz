@@ -1,37 +1,10 @@
-/* ملف مُولَّد آلياً — لا تعدّله يدوياً.
- * المصدر: وحدات ES داخل مجلد src
- * أعد التوليد بـ: node tools/build.mjs
- *
- * الغرض: تشغيل التطبيق عبر file:// حيث تُحجب وحدات ES.
- * عند التشغيل من خادم (http/https) تُستخدم الوحدات الأصلية مباشرةً.
- */
+/* Generated from src modules. */
 (function () {
   'use strict';
-
-  var __defs = {};
-  var __cache = {};
-
-  /** يعرّف وحدة */
+  var __defs = {}; var __cache = {};
   function __def(id, factory) { __defs[id] = factory; }
-
-  /** يقيّم وحدة مرة واحدة ويرجع تصديراتها */
-  function __m(id) {
-    if (__cache[id]) return __cache[id].exports;
-
-    var factory = __defs[id];
-    if (!factory) throw new Error('وحدة غير معرّفة داخل الحزمة: ' + id);
-
-    var mod = { exports: {} };
-    __cache[id] = mod;          // يُسجَّل قبل التنفيذ لتحمّل الاعتماد الدائري
-    factory(mod.exports, __m, __dyn);
-    return mod.exports;
-  }
-
-  /** بديل الاستيراد الديناميكي: يرجع وعداً محلولاً بتصديرات الوحدة */
-  function __dyn(id) {
-    try { return Promise.resolve(__m(id)); }
-    catch (error) { return Promise.reject(error); }
-  }
+  function __m(id) { if (__cache[id]) return __cache[id].exports; var factory=__defs[id]; if(!factory) throw new Error('وحدة غير معرّفة داخل الحزمة: '+id); var mod={exports:{}}; __cache[id]=mod; factory(mod.exports,__m,__dyn); return mod.exports; }
+  function __dyn(id) { try{return Promise.resolve(__m(id));}catch(error){return Promise.reject(error);} }
 
   /* ================================================================== */
   /* src/app.js */
@@ -1056,6 +1029,8 @@
       { path: '/pos', label: 'نقطة البيع', icon: 'pos' },
       { path: '/products', label: 'المنتجات', icon: 'products' },
       { path: '/inventory', label: 'المخزون', icon: 'inventory' },
+      { path: '/reorder', label: 'المطلوب شراؤها', icon: 'products' },
+      { path: '/purchases', label: 'الموردون والمشتريات', icon: 'expenses' },
       { path: '/invoices', label: 'الفواتير', icon: 'invoices' },
       { path: '/customers', label: 'العملاء', icon: 'customers' },
       { path: '/expenses', label: 'المصروفات', icon: 'expenses' },
@@ -2218,7 +2193,7 @@
      */
 
     const DB_NAME = 'sales-system';
-    const SCHEMA_VERSION = 4;
+    const SCHEMA_VERSION = 5;
     const APP_VERSION = '1.0.0';
 
     const STORES = {
@@ -2238,6 +2213,11 @@
       returns: 'returns',
       returnItems: 'returnItems',
       shifts: 'shifts',
+      suppliers: 'suppliers',
+      purchases: 'purchases',
+      purchaseItems: 'purchaseItems',
+      purchasePayments: 'purchasePayments',
+      purchaseOrders: 'purchaseOrders',
     };
 
     /** كل المتاجر التي تدخل في النسخ الاحتياطي والاستعادة */
@@ -2354,6 +2334,19 @@
         shifts.createIndex('status', 'status');
         shifts.createIndex('openedAt', 'openedAt');
         shifts.createIndex('dayKey', 'dayKey');
+      },
+      /** الإصدار 5: الموردون وأوامر الشراء والفواتير والمدفوعات */
+      5(db) {
+        const suppliers = db.createObjectStore(STORES.suppliers, { keyPath: 'id' });
+        suppliers.createIndex('name', 'name'); suppliers.createIndex('phone', 'phone');
+        const purchases = db.createObjectStore(STORES.purchases, { keyPath: 'id' });
+        purchases.createIndex('number', 'number', { unique: true }); purchases.createIndex('supplierId', 'supplierId'); purchases.createIndex('dayKey', 'dayKey'); purchases.createIndex('status', 'status');
+        const items = db.createObjectStore(STORES.purchaseItems, { keyPath: 'id' });
+        items.createIndex('purchaseId', 'purchaseId'); items.createIndex('productId', 'productId');
+        const payments = db.createObjectStore(STORES.purchasePayments, { keyPath: 'id' });
+        payments.createIndex('supplierId', 'supplierId'); payments.createIndex('purchaseId', 'purchaseId'); payments.createIndex('createdAt', 'createdAt'); payments.createIndex('dayKey', 'dayKey');
+        const orders = db.createObjectStore(STORES.purchaseOrders, { keyPath: 'id' });
+        orders.createIndex('supplierId', 'supplierId'); orders.createIndex('status', 'status'); orders.createIndex('createdAt', 'createdAt');
       },
     };
 
@@ -3310,13 +3303,13 @@
     function stockStatus(product) {
       if (!product) return STOCK_STATUS.OUT;
       if (product.quantity <= 0) return STOCK_STATUS.OUT;
-      if (product.quantity <= (product.lowStockThreshold ?? 0)) return STOCK_STATUS.LOW;
+      if (product.quantity <= (product.reorderPoint ?? product.minimumStock ?? product.lowStockThreshold ?? 0)) return STOCK_STATUS.LOW;
       return STOCK_STATUS.OK;
     }
 
     const STOCK_LABEL = {
       [STOCK_STATUS.OUT]: 'نفد المخزون',
-      [STOCK_STATUS.LOW]: 'منخفض',
+      [STOCK_STATUS.LOW]: 'يحتاج إلى إعادة طلب',
       [STOCK_STATUS.OK]: 'متوفر',
     };
 
@@ -3361,6 +3354,19 @@
         });
         return results;
       });
+    }
+
+    async function productsToReorder() {
+      const products = await listProducts();
+      return products.filter((p) => p.isActive !== false).map((product) => {
+        const minimumStock = product.minimumStock ?? product.lowStockThreshold ?? 0;
+        const reorderPoint = product.reorderPoint ?? product.lowStockThreshold ?? minimumStock;
+        const threshold = Math.max(minimumStock, reorderPoint);
+        const maximumStock = product.maximumStock ?? 0;
+        const targetStock = maximumStock > threshold ? maximumStock : threshold;
+        return { ...product, minimumStock, reorderPoint, targetStock, suggestedPurchase: Math.max(1, targetStock - (product.quantity || 0)) };
+      }).filter((product) => product.quantity <= product.reorderPoint)
+        .sort((a, b) => (a.quantity - a.reorderPoint) - (b.quantity - b.reorderPoint));
     }
 
     async function lowStockProducts(limit = 100) {
@@ -3503,6 +3509,7 @@
     Object.defineProperty(__exports, "findBySku", { enumerable: true, get: function () { return findBySku; } });
     Object.defineProperty(__exports, "findByBarcode", { enumerable: true, get: function () { return findByBarcode; } });
     Object.defineProperty(__exports, "searchProducts", { enumerable: true, get: function () { return searchProducts; } });
+    Object.defineProperty(__exports, "productsToReorder", { enumerable: true, get: function () { return productsToReorder; } });
     Object.defineProperty(__exports, "lowStockProducts", { enumerable: true, get: function () { return lowStockProducts; } });
     Object.defineProperty(__exports, "createProduct", { enumerable: true, get: function () { return createProduct; } });
     Object.defineProperty(__exports, "updateProduct", { enumerable: true, get: function () { return updateProduct; } });
@@ -3513,6 +3520,34 @@
     Object.defineProperty(__exports, "updateCategory", { enumerable: true, get: function () { return updateCategory; } });
     Object.defineProperty(__exports, "deleteCategory", { enumerable: true, get: function () { return deleteCategory; } });
     Object.defineProperty(__exports, "categoryMap", { enumerable: true, get: function () { return categoryMap; } });
+  });
+
+  /* ================================================================== */
+  /* src/repositories/purchasing.js */
+  __def("src/repositories/purchasing.js", function (__exports, __m, __dyn) {
+    /** دورة الموردين وأوامر الشراء والاستلام والذمم. */
+    const { tx, get, getAll, add, put, getAllByIndex } = __m("src/db/db.js");
+    const { STORES } = __m("src/db/schema.js");
+    const { uid } = __m("src/utils/id.js");
+    const { toISO, dayKey } = __m("src/utils/dates.js");
+    const { applyMovement, MOVEMENT } = __m("src/repositories/inventory.js");
+
+    const listSuppliers = () => tx(STORES.suppliers,'readonly',s=>getAll(s[STORES.suppliers]));
+    async function saveSupplier(value){const stamp=toISO();const rec={id:value.id||uid('sup'),name:value.name.trim(),phone:value.phone||'',email:value.email||'',address:value.address||'',note:value.note||'',createdAt:value.createdAt||stamp,updatedAt:stamp};await tx(STORES.suppliers,'readwrite',s=>put(s[STORES.suppliers],rec));return rec;}
+    async function supplierLedger(){const map=new Map();await tx([STORES.purchases,STORES.purchasePayments], 'readonly', async s=>{for(const p of await getAll(s[STORES.purchases])){if(p.status!=='received')continue;let x=map.get(p.supplierId)||{balanceMinor:0,purchasesMinor:0,lastPurchaseAt:null};x.purchasesMinor+=p.totalMinor;x.balanceMinor+=p.totalMinor;if(!x.lastPurchaseAt||p.createdAt>x.lastPurchaseAt)x.lastPurchaseAt=p.createdAt;map.set(p.supplierId,x)}for(const p of await getAll(s[STORES.purchasePayments])){let x=map.get(p.supplierId)||{balanceMinor:0,purchasesMinor:0,lastPurchaseAt:null};x.balanceMinor-=p.amountMinor;map.set(p.supplierId,x)}});return map;}
+    const listOrders=()=>tx(STORES.purchaseOrders,'readonly',s=>getAll(s[STORES.purchaseOrders])).then(a=>a.sort((x,y)=>y.createdAt.localeCompare(x.createdAt)));
+    async function createOrder({supplierId,invoiceNumber='',lines,note=''}){if(!supplierId||!lines.length)throw new Error('اختر المورد وأضف صنفاً واحداً على الأقل');if(lines.some(x=>!Number.isInteger(x.quantity)||x.quantity<=0||!Number.isInteger(x.unitCostMinor)||x.unitCostMinor<0))throw new Error('تحقق من كمية الصنف وسعر شرائه');const rec={id:uid('po'),number:'PO-'+Date.now().toString().slice(-8),supplierId,invoiceNumber,lines:lines.map(x=>({...x})),note,status:'ordered',createdAt:toISO(),dayKey:dayKey(new Date())};await tx(STORES.purchaseOrders,'readwrite',s=>add(s[STORES.purchaseOrders],rec));return rec;}
+    async function receiveOrder(orderId,{paidMinor=0,taxRateBp=0,discountMinor=0}={}){if(!Number.isInteger(taxRateBp)||taxRateBp<0||taxRateBp>10000)throw new Error('نسبة الضريبة غير صالحة');if(!Number.isInteger(paidMinor)||!Number.isInteger(discountMinor))throw new Error('قيمة الدفع أو الخصم غير صالحة');return tx([STORES.purchaseOrders,STORES.purchases,STORES.purchaseItems,STORES.purchasePayments,STORES.products,STORES.inventoryMovements],'readwrite',async s=>{const order=await get(s[STORES.purchaseOrders],orderId);if(!order||order.status!=='ordered')throw new Error('أمر الشراء غير موجود أو تم استلامه');let subtotal=0;for(const l of order.lines)subtotal+=l.quantity*l.unitCostMinor;discountMinor=Math.min(Math.max(0,discountMinor),subtotal);const taxable=subtotal-discountMinor,taxMinor=Math.round(taxable*taxRateBp/10000),totalMinor=taxable+taxMinor;paidMinor=Math.min(Math.max(0,paidMinor),totalMinor);const stamp=toISO(),id=uid('pur');const purchase={id,number:'PUR-'+Date.now().toString().slice(-8),supplierId:order.supplierId,supplierInvoiceNumber:order.invoiceNumber,orderId:order.id,subtotalMinor:subtotal,discountMinor,taxRateBp,taxMinor,totalMinor,paidMinor,dueMinor:totalMinor-paidMinor,status:'received',createdAt:stamp,dayKey:dayKey(new Date()),note:order.note};await add(s[STORES.purchases],purchase);for(const l of order.lines){const prod=await get(s[STORES.products],l.productId);if(!prod)throw new Error('أحد المنتجات غير موجود');await add(s[STORES.purchaseItems],{id:uid('pitem'),purchaseId:id,productId:l.productId,sku:prod.sku,name:prod.name,quantity:l.quantity,unitCostMinor:l.unitCostMinor,lineTotalMinor:l.quantity*l.unitCostMinor});await put(s[STORES.products],{...prod,costMinor:l.unitCostMinor,updatedAt:stamp});await applyMovement(s,{productId:l.productId,delta:l.quantity,type:MOVEMENT.IN,reason:'شراء جديد',note:'استلام '+purchase.number,refType:'purchase',refId:id});}if(paidMinor)await add(s[STORES.purchasePayments],{id:uid('ppay'),supplierId:order.supplierId,purchaseId:id,amountMinor:paidMinor,method:'cash',reference:purchase.number,note:'دفعة عند الاستلام',createdAt:stamp,dayKey:purchase.dayKey});order.status='received';order.purchaseId=id;order.receivedAt=stamp;await put(s[STORES.purchaseOrders],order);return purchase;});}
+    async function paySupplier({supplierId,purchaseId=null,amountMinor,method='cash',reference='',note=''}){if(!Number.isInteger(amountMinor)||amountMinor<=0)throw new Error('أدخل مبلغاً صحيحاً');const rec={id:uid('ppay'),supplierId,purchaseId,amountMinor,method,reference,note,createdAt:toISO(),dayKey:dayKey(new Date())};await tx([STORES.suppliers,STORES.purchasePayments],'readwrite',async s=>{if(!await get(s[STORES.suppliers],supplierId))throw new Error('المورد غير موجود');await add(s[STORES.purchasePayments],rec)});return rec;}
+
+
+    Object.defineProperty(__exports, "listSuppliers", { enumerable: true, get: function () { return listSuppliers; } });
+    Object.defineProperty(__exports, "saveSupplier", { enumerable: true, get: function () { return saveSupplier; } });
+    Object.defineProperty(__exports, "supplierLedger", { enumerable: true, get: function () { return supplierLedger; } });
+    Object.defineProperty(__exports, "listOrders", { enumerable: true, get: function () { return listOrders; } });
+    Object.defineProperty(__exports, "createOrder", { enumerable: true, get: function () { return createOrder; } });
+    Object.defineProperty(__exports, "receiveOrder", { enumerable: true, get: function () { return receiveOrder; } });
+    Object.defineProperty(__exports, "paySupplier", { enumerable: true, get: function () { return paySupplier; } });
   });
 
   /* ================================================================== */
@@ -4351,6 +4386,8 @@
       route('/products/:id', screen(() => __dyn("src/views/product-form.js"), 'renderView'), { title: 'تفاصيل المنتج' });
 
       route('/inventory', screen(() => __dyn("src/views/inventory.js")), { title: 'المخزون' });
+      route('/reorder', screen(() => __dyn("src/views/reorder.js")), { title: 'المنتجات المطلوب شراؤها' });
+      route('/purchases', screen(() => __dyn("src/views/purchases.js")), { title: 'الموردون والمشتريات' });
 
       route('/invoices', screen(() => __dyn("src/views/invoices.js")), { title: 'الفواتير' });
       route('/invoices/:id', screen(() => __dyn("src/views/invoice-detail.js")), { title: 'تفاصيل الفاتورة' });
@@ -4519,6 +4556,11 @@
       [STORES.products]: { id: 'string', sku: 'string', name: 'string', priceMinor: 'int', costMinor: 'int', quantity: 'int' },
       [STORES.categories]: { id: 'string', name: 'string' },
       [STORES.customers]: { id: 'string', name: 'string' },
+      [STORES.suppliers]: { id: 'string', name: 'string' },
+      [STORES.purchases]: { id: 'string', number: 'string', supplierId: 'string', totalMinor: 'int', status: 'string', createdAt: 'string' },
+      [STORES.purchaseItems]: { id: 'string', purchaseId: 'string', productId: 'string', quantity: 'int', unitCostMinor: 'int' },
+      [STORES.purchasePayments]: { id: 'string', supplierId: 'string', amountMinor: 'int', createdAt: 'string' },
+      [STORES.purchaseOrders]: { id: 'string', supplierId: 'string', status: 'string', createdAt: 'string' },
       [STORES.sales]: { id: 'string', number: 'string', totalMinor: 'int', dayKey: 'string', status: 'string', createdAt: 'string' },
       [STORES.saleItems]: { id: 'string', saleId: 'string', productId: 'string', quantity: 'int', unitPriceMinor: 'int' },
       [STORES.payments]: { id: 'string', customerId: 'string', amountMinor: 'int', createdAt: 'string' },
@@ -7460,6 +7502,14 @@
       const lowStockThreshold = parseQuantity(input.lowStockThreshold ?? 0);
       if (Number.isNaN(lowStockThreshold)) v.add('lowStockThreshold', 'حد المخزون المنخفض غير صالح');
 
+      const minimumStock = parseQuantity(input.minimumStock ?? input.lowStockThreshold ?? 0);
+      const maximumStock = parseQuantity(input.maximumStock ?? 0);
+      const reorderPoint = parseQuantity(input.reorderPoint ?? input.lowStockThreshold ?? 0);
+      if (Number.isNaN(minimumStock)) v.add('minimumStock', 'الحد الأدنى للمخزون غير صالح');
+      if (Number.isNaN(maximumStock)) v.add('maximumStock', 'الحد الأقصى للمخزون غير صالح');
+      if (Number.isNaN(reorderPoint)) v.add('reorderPoint', 'نقطة إعادة الطلب غير صالحة');
+      if (!Number.isNaN(maximumStock) && !Number.isNaN(minimumStock) && maximumStock > 0 && maximumStock < minimumStock) v.add('maximumStock', 'الحد الأقصى يجب أن يساوي الحد الأدنى أو يزيد عليه');
+
       const description = normalizeMultiline(input.description, LIMITS.description);
 
       if (!v.ok) return { ok: false, errors: v.errors, value: null };
@@ -7479,6 +7529,9 @@
           taxRateBp,
           quantity,
           lowStockThreshold,
+          minimumStock,
+          maximumStock,
+          reorderPoint,
           description,
           image: input.image ?? null,
           isActive: input.isActive !== false,
@@ -9529,7 +9582,9 @@
                   label: 'الكمية الحالية',
                   render: (product) => h('span', { style: { 'font-weight': '600' } }, ltr(product.quantity)),
                 },
-                { key: 'lowStockThreshold', label: 'الحد الأدنى', render: (product) => ltr(product.lowStockThreshold) },
+                { key: 'minimumStock', label: 'الحد الأدنى', render: (product) => ltr(product.minimumStock ?? product.lowStockThreshold ?? 0) },
+                { key: 'maximumStock', label: 'الحد الأقصى', render: (product) => ltr(product.maximumStock ?? 0) },
+                { key: 'reorderPoint', label: 'نقطة إعادة الطلب', render: (product) => ltr(product.reorderPoint ?? product.lowStockThreshold ?? 0) },
                 {
                   key: 'status',
                   label: 'الحالة',
@@ -10810,7 +10865,7 @@
         onInput: debounce((value) => {
           query = value;
           // مطابقة باركود دقيقة: أضف للعربة مباشرة (سلوك ماسح الباركود)
-          const exact = active.find((product) => product.barcode && product.barcode === value.trim());
+          const exact = active.find((product) => product.barcode && String(product.barcode).trim().toLowerCase() === value.trim().toLowerCase());
           if (exact) {
             addToCart(exact);
             search.input.value = '';
@@ -10820,16 +10875,101 @@
         }, 180),
       });
 
+      let stopCameraScanner = null;
+
+      async function openCameraScanner() {
+        const Detector = globalThis.BarcodeDetector;
+        if (!navigator.mediaDevices?.getUserMedia || !Detector) {
+          search.input.focus();
+          toastWarn(!navigator.mediaDevices?.getUserMedia
+            ? 'مسح الكاميرا يحتاج إلى اتصال آمن HTTPS أو localhost. يمكنك استخدام قارئ باركود خارجي أو الإدخال اليدوي.'
+            : 'هذا المتصفح لا يدعم قراءة الباركود بالكاميرا. استخدم قارئ باركود خارجي أو الإدخال اليدوي.');
+          return;
+        }
+
+        const video = h('video', {
+          attrs: { autoplay: true, playsinline: true, muted: true, 'aria-label': 'معاينة الكاميرا' },
+          style: { display: 'block', width: '100%', 'max-height': '58vh', 'object-fit': 'contain', 'border-radius': '12px', background: '#111' },
+        });
+        const status = h('p', { class: 'field__hint', attrs: { role: 'status', 'aria-live': 'polite' }, text: 'وجّه الكاميرا نحو باركود المنتج.' });
+        let stream = null;
+        let frame = 0;
+        let stopped = false;
+        let detecting = false;
+        let lastScanAt = 0;
+        let detector;
+        const stop = () => {
+          stopped = true;
+          if (frame) cancelAnimationFrame(frame);
+          stream?.getTracks().forEach((track) => track.stop());
+          video.srcObject = null;
+          if (stopCameraScanner === stop) stopCameraScanner = null;
+        };
+        stopCameraScanner?.();
+        stopCameraScanner = stop;
+
+        const modal = openModal({
+          title: 'مسح الباركود بالكاميرا',
+          size: 'lg',
+          body: h('div', { class: 'stack' }, video, status),
+          footer: [h('button', { class: 'btn btn--ghost', attrs: { type: 'button' }, text: 'إغلاق الكاميرا', on: { click: () => modal.close() } })],
+          onClose: stop,
+        });
+
+        try {
+          const supported = typeof Detector.getSupportedFormats === 'function'
+            ? await Detector.getSupportedFormats()
+            : ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+          const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf']
+            .filter((format) => supported.includes(format));
+          if (formats.length === 0) throw new Error('لا توجد صيغ باركود مدعومة في هذا المتصفح.');
+          detector = new Detector({ formats });
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+          if (stopped) { stream.getTracks().forEach((track) => track.stop()); return; }
+          video.srcObject = stream;
+          await video.play();
+
+          const scanFrame = async () => {
+            if (stopped) return;
+            if (!detecting && video.readyState >= 2 && performance.now() - lastScanAt >= 120) {
+              detecting = true;
+              lastScanAt = performance.now();
+              try {
+                const results = await detector.detect(video);
+                const value = results.find((item) => item.rawValue)?.rawValue?.trim();
+                if (value && !stopped) {
+                  search.input.value = value;
+                  search.input.dispatchEvent(new Event('input', { bubbles: true }));
+                  status.textContent = 'تمت قراءة الباركود. جارٍ البحث عن المنتج…';
+                  modal.close();
+                  return;
+                }
+              } catch (error) {
+                status.textContent = 'تعذرت قراءة الصورة. ثبّت الكاميرا واجعل الباركود واضحاً.';
+              } finally {
+                detecting = false;
+              }
+            }
+            if (!stopped) frame = requestAnimationFrame(scanFrame);
+          };
+          frame = requestAnimationFrame(scanFrame);
+        } catch (error) {
+          stop();
+          status.textContent = error.name === 'NotAllowedError'
+            ? 'لم يُسمح باستخدام الكاميرا. امنح المتصفح الإذن ثم حاول مجدداً.'
+            : error.message || 'تعذر تشغيل الكاميرا.';
+          toastError(status.textContent);
+        }
+      }
+
       const scanButton = h('button', {
-        class: 'pos__scan',
-        attrs: { type: 'button', 'aria-label': 'إدخال باركود يدوياً' },
-        on: {
-          click: async () => {
-            search.input.focus();
-            toastOk('وجّه ماسح الباركود إلى حقل البحث، أو اكتب الرقم يدوياً.');
-          },
-        },
-      }, icon('barcode'));
+        class: 'pos__scan btn btn--outline',
+        attrs: { type: 'button', 'aria-label': 'مسح الباركود بالكاميرا' },
+        on: { click: openCameraScanner },
+      }, icon('barcode'), h('span', { text: 'مسح بالكاميرا' }));
 
       const categoryChips = h('div');
       function drawChips() {
@@ -11503,6 +11643,7 @@
       const unsubscribe = cartState.subscribe(drawCart);
       context?.onCleanup?.(() => {
         unsubscribe();
+        stopCameraScanner?.();
         cartBar.remove();
       });
 
@@ -11675,6 +11816,20 @@
         value: String(existing?.lowStockThreshold ?? s.lowStockDefault),
       });
 
+      const minimumStockField = field({
+        label: 'الحد الأدنى للمخزون', name: 'minimumStock', type: 'number', min: '0',
+        value: String(existing?.minimumStock ?? existing?.lowStockThreshold ?? s.lowStockDefault),
+      });
+      const maximumStockField = field({
+        label: 'الحد الأقصى للمخزون', name: 'maximumStock', type: 'number', min: '0',
+        value: String(existing?.maximumStock ?? 0), hint: '0 يعني غير محدد',
+      });
+      const reorderPointField = field({
+        label: 'نقطة إعادة الطلب', name: 'reorderPoint', type: 'number', min: '0',
+        value: String(existing?.reorderPoint ?? existing?.lowStockThreshold ?? s.lowStockDefault),
+        hint: 'يظهر تنبيه إعادة الطلب عند وصول المخزون إلى هذه الكمية أو أقل.',
+      });
+
       const activeToggle = toggleField({ label: 'نشط', name: 'isActive', checked: existing?.isActive !== false });
 
       /* ------------------------------ رفع الصورة ------------------------------ */
@@ -11750,6 +11905,7 @@
         name: nameField, sku: skuField, categoryId: categoryField, unit: unitField,
         cost: costField, price: priceField, taxRate: taxField,
         quantity: quantityField, lowStockThreshold: lowStockField,
+        minimumStock: minimumStockField, maximumStock: maximumStockField, reorderPoint: reorderPointField,
       };
 
       function clearErrors() {
@@ -11769,6 +11925,9 @@
           taxRate: taxField.value,
           quantity: quantityField.value,
           lowStockThreshold: lowStockField.value,
+          minimumStock: minimumStockField.value,
+          maximumStock: maximumStockField.value,
+          reorderPoint: reorderPointField.value,
           isActive: activeToggle.checked,
           image: imageData,
         };
@@ -11888,7 +12047,7 @@
             card({ title: 'صورة المنتج', body: imageHost }),
             card({
               title: 'المخزون',
-              body: h('div', { class: 'stack' }, quantityField.element, lowStockField.element),
+              body: h('div', { class: 'stack' }, quantityField.element, minimumStockField.element, maximumStockField.element, reorderPointField.element),
             }),
             card({
               body: h('div', { class: 'row', style: { 'justify-content': 'space-between' } },
@@ -12507,6 +12666,92 @@
         kpiHost,
         filterBar,
         tableHost
+      );
+    }
+
+
+    Object.defineProperty(__exports, "render", { enumerable: true, get: function () { return render; } });
+  });
+
+  /* ================================================================== */
+  /* src/views/purchases.js */
+  __def("src/views/purchases.js", function (__exports, __m, __dyn) {
+    /** الموردون والمشتريات وأوامر الشراء. */
+    const { h } = __m("src/utils/dom.js");
+    const { formatAmount } = __m("src/utils/format.js");
+    const { toMinor } = __m("src/utils/money.js");
+    const { formatDate } = __m("src/utils/dates.js");
+    const { listProducts } = __m("src/repositories/products.js");
+    const { listSuppliers, supplierLedger, listOrders, saveSupplier, createOrder, receiveOrder, paySupplier } = __m("src/repositories/purchasing.js");
+    const { toastOk, toastError } = __m("src/components/feedback.js");
+    const { notifyDataChanged } = __m("src/state/store.js");
+    const { refresh } = __m("src/router.js");
+    const { settings } = __m("src/repositories/settings.js");
+    const inp=(label,name,type='text',attrs={})=>h('label',{class:'field'},h('span',{class:'field__label',text:label}),h('input',{class:'input',name,type,attrs:{required:true,...attrs}}));
+    const money=n=>formatAmount(n||0);
+    async function render(context={}){let [suppliers,ledger,orders,products]=await Promise.all([listSuppliers(),supplierLedger(),listOrders(),listProducts()]);const prefs=settings();const symbol=prefs.currencySymbol||'₪';const host=h('div',{class:'page stack'});function draw(){const rows=suppliers.map(s=>{let l=ledger.get(s.id)||{balanceMinor:0,purchasesMinor:0};return h('tr',null,h('td',{text:s.name}),h('td',{text:s.phone||'—'}),h('td',{text:s.email||'—'}),h('td',{text:money(l.balanceMinor)+' '+symbol}),h('td',{text:money(l.purchasesMinor)+' '+symbol}),h('td',{text:l.lastPurchaseAt?formatDate(l.lastPurchaseAt,prefs.dateFormat):'—'}),h('td',null,h('button',{class:'btn btn--sm btn--ghost',attrs:{type:'button'},text:'تسجيل دفعة',on:{click:()=>payment(s)}}))) });const orderRows=orders.map(o=>{const sup=suppliers.find(x=>x.id===o.supplierId);return h('tr',null,h('td',{text:o.number}),h('td',{text:sup?.name||'—'}),h('td',{text:o.invoiceNumber||'—'}),h('td',{text:o.status==='received'?'تم الاستلام':'بانتظار الاستلام'}),h('td',null,o.status==='ordered'?h('button',{class:'btn btn--sm btn--primary',attrs:{type:'button'},text:'استلام وتحديث المخزون',on:{click:()=>receive(o)} }):h('span',{text:o.purchaseId||'—'}))) });host.replaceChildren(h('div',{class:'page-header'},h('div',null,h('h2',{text:'الموردون والمشتريات'}),h('p',{class:'muted',text:'إدارة الموردين وأوامر الشراء والاستلام وحساب المورد.'}))),h('div',{class:'grid-2'},h('section',{class:'card card__body'},h('h3',{text:'إضافة مورد'}),h('form',{class:'stack',on:{submit:addSupplier}},inp('اسم المورد','name'),inp('الهاتف','phone','tel',{required:false}),inp('البريد الإلكتروني','email','email',{required:false}),inp('العنوان','address','text',{required:false}),h('label',{class:'field'},h('span',{class:'field__label',text:'ملاحظات'}),h('textarea',{class:'input',name:'note',attrs:{rows:2}})),h('button',{class:'btn btn--primary',attrs:{type:'submit'},text:'حفظ المورد'}))),h('section',{class:'card card__body'},h('h3',{text:'إنشاء أمر شراء'}),h('form',{class:'stack',on:{submit:addOrder}},h('label',{class:'field'},h('span',{class:'field__label',text:'المورد'}),h('select',{class:'input',name:'supplierId',attrs:{required:true}},...suppliers.map(s=>h('option',{attrs:{value:s.id},text:s.name})))),inp('رقم فاتورة المورد','invoiceNumber','text',{required:false}),h('div',{class:'grid-3'},h('label',{class:'field'},h('span',{class:'field__label',text:'المنتج'}),h('select',{class:'input',name:'productId',attrs:{required:true}},...products.filter(p=>p.isActive!==false).map(p=>h('option',{attrs:{value:p.id,...(context.query?.productId===p.id?{selected:true}:{})},text:p.name})))),inp('الكمية','quantity','number',{min:1,step:1,value:context.query?.quantity||1}),inp('سعر الشراء للوحدة','cost','number',{min:0,step:'0.01'})),h('label',{class:'field'},h('span',{class:'field__label',text:'ملاحظات'}),h('textarea',{class:'input',name:'note',attrs:{rows:2}})),h('button',{class:'btn btn--primary',attrs:{type:'submit'},text:'حفظ أمر الشراء'})))),h('section',{class:'card card__body'},h('h3',{text:'قائمة الموردين'}),h('div',{class:'table-wrap'},h('table',{class:'table'},h('thead',null,h('tr',null,...['المورد','الهاتف','البريد','الرصيد المستحق','إجمالي المشتريات','آخر شراء','إجراء'].map(x=>h('th',{text:x})))),h('tbody',null,...rows)))),h('section',{class:'card card__body'},h('h3',{text:'أوامر الشراء والاستلام'}),h('div',{class:'table-wrap'},h('table',{class:'table'},h('thead',null,h('tr',null,...['رقم الأمر','المورد','فاتورة المورد','الحالة','الإجراء'].map(x=>h('th',{text:x})))),h('tbody',null,...orderRows)))))}
+    async function addSupplier(e){e.preventDefault();let d=Object.fromEntries(new FormData(e.currentTarget));try{await saveSupplier(d);notifyDataChanged();toastOk('تم حفظ المورد');refresh()}catch(x){toastError(x.message)}}
+    async function addOrder(e){e.preventDefault();let d=Object.fromEntries(new FormData(e.currentTarget));try{await createOrder({supplierId:d.supplierId,invoiceNumber:d.invoiceNumber,lines:[{productId:d.productId,quantity:Number(d.quantity),unitCostMinor:toMinor(d.cost)}],note:d.note});notifyDataChanged();toastOk('تم حفظ أمر الشراء؛ استلمه لتحديث المخزون');refresh()}catch(x){toastError(x.message)}}
+    async function receive(o){let paid=prompt('المبلغ المدفوع الآن (اتركه 0 للشراء الآجل):','0');if(paid===null)return;let discount=prompt('الخصم على الفاتورة:','0');if(discount===null)return;let tax=prompt('نسبة الضريبة %:','0');if(tax===null)return;try{await receiveOrder(o.id,{paidMinor:toMinor(paid),discountMinor:toMinor(discount),taxRateBp:Math.round(Number(tax)*100)});notifyDataChanged();toastOk('تم الاستلام وتحديث المخزون وحساب المورد');refresh()}catch(x){toastError(x.message)}}
+    async function payment(s){let amount=prompt('مبلغ الدفعة:');if(amount===null)return;try{await paySupplier({supplierId:s.id,amountMinor:toMinor(amount),reference:'دفعة مورد'});notifyDataChanged();toastOk('تم تسجيل الدفعة');refresh()}catch(x){toastError(x.message)}}
+    draw();return host;}
+
+
+    Object.defineProperty(__exports, "render", { enumerable: true, get: function () { return render; } });
+  });
+
+  /* ================================================================== */
+  /* src/views/reorder.js */
+  __def("src/views/reorder.js", function (__exports, __m, __dyn) {
+    /** تقرير المنتجات التي وصلت إلى نقطة إعادة الطلب. */
+    const { h } = __m("src/utils/dom.js");
+    const { dataTable } = __m("src/components/table.js");
+    const { card, badge } = __m("src/components/ui.js");
+    const { productsToReorder, stockStatus, STOCK_TONE } = __m("src/repositories/products.js");
+    const { formatInt } = __m("src/utils/format.js");
+    const { navigate } = __m("src/router.js");
+
+    async function render() {
+      const products = await productsToReorder();
+      const table = dataTable({
+        caption: 'المنتجات المطلوب شراؤها',
+        columns: [
+          { key: 'name', label: 'المنتج', render: (product) => h('div', null,
+            h('strong', { text: product.name }),
+            h('div', { class: 'table__sub', text: product.sku })
+          ) },
+          { key: 'quantity', label: 'المخزون الحالي', render: (product) => formatInt(product.quantity) },
+          { key: 'minimumStock', label: 'الحد الأدنى', render: (product) => formatInt(product.minimumStock) },
+          { key: 'maximumStock', label: 'الحد الأقصى', render: (product) => product.maximumStock ? formatInt(product.maximumStock) : '—' },
+          { key: 'reorderPoint', label: 'نقطة إعادة الطلب', render: (product) => formatInt(product.reorderPoint) },
+          { key: 'status', label: 'الحالة', render: (product) => badge('يحتاج إلى إعادة طلب', STOCK_TONE[stockStatus(product)] || 'amber') },
+          { key: 'suggestedPurchase', label: 'المقترح شراء', render: (product) => h('strong', { text: formatInt(product.suggestedPurchase) }) },
+          {
+            key: 'action', label: 'الإجراء', className: 'is-actions',
+            render: (product) => h('button', {
+              class: 'btn btn--sm btn--primary',
+              attrs: { type: 'button' },
+              text: 'إنشاء أمر شراء',
+              on: { click: () => navigate('/purchases?productId=' + encodeURIComponent(product.id) + '&quantity=' + product.suggestedPurchase) },
+            }),
+          },
+        ],
+        rows: products,
+        empty: {
+          iconName: 'checkCircle',
+          title: 'لا توجد منتجات لإعادة الطلب',
+          text: 'كل المنتجات أعلى من نقاط إعادة الطلب المحددة.',
+        },
+      });
+
+      return h('div', { class: 'stack' },
+        h('div', { class: 'page__head' },
+          h('div', null,
+            h('h2', { class: 'page__title', text: 'المنتجات المطلوب شراؤها' }),
+            h('p', { class: 'muted', text: 'منتجات وصلت إلى نقطة إعادة الطلب، مع كمية مقترحة للوصول إلى الحد المستهدف.' })
+          )
+        ),
+        card({ flush: true, body: table })
       );
     }
 
@@ -13850,6 +14095,5 @@
     Object.defineProperty(__exports, "render", { enumerable: true, get: function () { return render; } });
   });
 
-  /* نقطة الدخول */
   __m("src/app.js");
 }());

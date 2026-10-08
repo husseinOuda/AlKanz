@@ -10,13 +10,13 @@ export const STOCK_STATUS = { OUT: 'out', LOW: 'low', OK: 'ok' };
 export function stockStatus(product) {
   if (!product) return STOCK_STATUS.OUT;
   if (product.quantity <= 0) return STOCK_STATUS.OUT;
-  if (product.quantity <= (product.lowStockThreshold ?? 0)) return STOCK_STATUS.LOW;
+  if (product.quantity <= (product.reorderPoint ?? product.minimumStock ?? product.lowStockThreshold ?? 0)) return STOCK_STATUS.LOW;
   return STOCK_STATUS.OK;
 }
 
 export const STOCK_LABEL = {
   [STOCK_STATUS.OUT]: 'نفد المخزون',
-  [STOCK_STATUS.LOW]: 'منخفض',
+  [STOCK_STATUS.LOW]: 'يحتاج إلى إعادة طلب',
   [STOCK_STATUS.OK]: 'متوفر',
 };
 
@@ -61,6 +61,19 @@ export async function searchProducts(term, { limit = 50, activeOnly = true } = {
     });
     return results;
   });
+}
+
+export async function productsToReorder() {
+  const products = await listProducts();
+  return products.filter((p) => p.isActive !== false).map((product) => {
+    const minimumStock = product.minimumStock ?? product.lowStockThreshold ?? 0;
+    const reorderPoint = product.reorderPoint ?? product.lowStockThreshold ?? minimumStock;
+    const threshold = Math.max(minimumStock, reorderPoint);
+    const maximumStock = product.maximumStock ?? 0;
+    const targetStock = maximumStock > threshold ? maximumStock : threshold;
+    return { ...product, minimumStock, reorderPoint, targetStock, suggestedPurchase: Math.max(1, targetStock - (product.quantity || 0)) };
+  }).filter((product) => product.quantity <= product.reorderPoint)
+    .sort((a, b) => (a.quantity - a.reorderPoint) - (b.quantity - b.reorderPoint));
 }
 
 export async function lowStockProducts(limit = 100) {

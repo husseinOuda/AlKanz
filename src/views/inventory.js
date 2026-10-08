@@ -109,7 +109,9 @@ export async function render(context) {
               label: 'الكمية الحالية',
               render: (product) => h('span', { style: { 'font-weight': '600' } }, ltr(product.quantity)),
             },
-            { key: 'lowStockThreshold', label: 'الحد الأدنى', render: (product) => ltr(product.lowStockThreshold) },
+            { key: 'minimumStock', label: 'الحد الأدنى', render: (product) => ltr(product.minimumStock ?? product.lowStockThreshold ?? 0) },
+            { key: 'maximumStock', label: 'الحد الأقصى', render: (product) => ltr(product.maximumStock ?? 0) },
+            { key: 'reorderPoint', label: 'نقطة إعادة الطلب', render: (product) => ltr(product.reorderPoint ?? product.lowStockThreshold ?? 0) },
             {
               key: 'status',
               label: 'الحالة',

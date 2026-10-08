@@ -7,7 +7,7 @@
  */
 
 export const DB_NAME = 'sales-system';
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const APP_VERSION = '1.0.0';
 
 export const STORES = {
@@ -27,6 +27,11 @@ export const STORES = {
   returns: 'returns',
   returnItems: 'returnItems',
   shifts: 'shifts',
+  suppliers: 'suppliers',
+  purchases: 'purchases',
+  purchaseItems: 'purchaseItems',
+  purchasePayments: 'purchasePayments',
+  purchaseOrders: 'purchaseOrders',
 };
 
 /** كل المتاجر التي تدخل في النسخ الاحتياطي والاستعادة */
@@ -143,6 +148,19 @@ const migrations = {
     shifts.createIndex('status', 'status');
     shifts.createIndex('openedAt', 'openedAt');
     shifts.createIndex('dayKey', 'dayKey');
+  },
+  /** الإصدار 5: الموردون وأوامر الشراء والفواتير والمدفوعات */
+  5(db) {
+    const suppliers = db.createObjectStore(STORES.suppliers, { keyPath: 'id' });
+    suppliers.createIndex('name', 'name'); suppliers.createIndex('phone', 'phone');
+    const purchases = db.createObjectStore(STORES.purchases, { keyPath: 'id' });
+    purchases.createIndex('number', 'number', { unique: true }); purchases.createIndex('supplierId', 'supplierId'); purchases.createIndex('dayKey', 'dayKey'); purchases.createIndex('status', 'status');
+    const items = db.createObjectStore(STORES.purchaseItems, { keyPath: 'id' });
+    items.createIndex('purchaseId', 'purchaseId'); items.createIndex('productId', 'productId');
+    const payments = db.createObjectStore(STORES.purchasePayments, { keyPath: 'id' });
+    payments.createIndex('supplierId', 'supplierId'); payments.createIndex('purchaseId', 'purchaseId'); payments.createIndex('createdAt', 'createdAt'); payments.createIndex('dayKey', 'dayKey');
+    const orders = db.createObjectStore(STORES.purchaseOrders, { keyPath: 'id' });
+    orders.createIndex('supplierId', 'supplierId'); orders.createIndex('status', 'status'); orders.createIndex('createdAt', 'createdAt');
   },
 };
 

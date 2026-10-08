@@ -128,6 +128,14 @@ export function validateProduct(input) {
   const lowStockThreshold = parseQuantity(input.lowStockThreshold ?? 0);
   if (Number.isNaN(lowStockThreshold)) v.add('lowStockThreshold', 'حد المخزون المنخفض غير صالح');
 
+  const minimumStock = parseQuantity(input.minimumStock ?? input.lowStockThreshold ?? 0);
+  const maximumStock = parseQuantity(input.maximumStock ?? 0);
+  const reorderPoint = parseQuantity(input.reorderPoint ?? input.lowStockThreshold ?? 0);
+  if (Number.isNaN(minimumStock)) v.add('minimumStock', 'الحد الأدنى للمخزون غير صالح');
+  if (Number.isNaN(maximumStock)) v.add('maximumStock', 'الحد الأقصى للمخزون غير صالح');
+  if (Number.isNaN(reorderPoint)) v.add('reorderPoint', 'نقطة إعادة الطلب غير صالحة');
+  if (!Number.isNaN(maximumStock) && !Number.isNaN(minimumStock) && maximumStock > 0 && maximumStock < minimumStock) v.add('maximumStock', 'الحد الأقصى يجب أن يساوي الحد الأدنى أو يزيد عليه');
+
   const description = normalizeMultiline(input.description, LIMITS.description);
 
   if (!v.ok) return { ok: false, errors: v.errors, value: null };
@@ -147,6 +155,9 @@ export function validateProduct(input) {
       taxRateBp,
       quantity,
       lowStockThreshold,
+      minimumStock,
+      maximumStock,
+      reorderPoint,
       description,
       image: input.image ?? null,
       isActive: input.isActive !== false,

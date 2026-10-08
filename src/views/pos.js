@@ -115,7 +115,7 @@ export async function render(context) {
     onInput: debounce((value) => {
       query = value;
       // مطابقة باركود دقيقة: أضف للعربة مباشرة (سلوك ماسح الباركود)
-      const exact = active.find((product) => product.barcode && product.barcode === value.trim());
+      const exact = active.find((product) => product.barcode && String(product.barcode).trim().toLowerCase() === value.trim().toLowerCase());
       if (exact) {
         addToCart(exact);
         search.input.value = '';
@@ -125,16 +125,101 @@ export async function render(context) {
     }, 180),
   });
 
+  let stopCameraScanner = null;
+
+  async function openCameraScanner() {
+    const Detector = globalThis.BarcodeDetector;
+    if (!navigator.mediaDevices?.getUserMedia || !Detector) {
+      search.input.focus();
+      toastWarn(!navigator.mediaDevices?.getUserMedia
+        ? 'مسح الكاميرا يحتاج إلى اتصال آمن HTTPS أو localhost. يمكنك استخدام قارئ باركود خارجي أو الإدخال اليدوي.'
+        : 'هذا المتصفح لا يدعم قراءة الباركود بالكاميرا. استخدم قارئ باركود خارجي أو الإدخال اليدوي.');
+      return;
+    }
+
+    const video = h('video', {
+      attrs: { autoplay: true, playsinline: true, muted: true, 'aria-label': 'معاينة الكاميرا' },
+      style: { display: 'block', width: '100%', 'max-height': '58vh', 'object-fit': 'contain', 'border-radius': '12px', background: '#111' },
+    });
+    const status = h('p', { class: 'field__hint', attrs: { role: 'status', 'aria-live': 'polite' }, text: 'وجّه الكاميرا نحو باركود المنتج.' });
+    let stream = null;
+    let frame = 0;
+    let stopped = false;
+    let detecting = false;
+    let lastScanAt = 0;
+    let detector;
+    const stop = () => {
+      stopped = true;
+      if (frame) cancelAnimationFrame(frame);
+      stream?.getTracks().forEach((track) => track.stop());
+      video.srcObject = null;
+      if (stopCameraScanner === stop) stopCameraScanner = null;
+    };
+    stopCameraScanner?.();
+    stopCameraScanner = stop;
+
+    const modal = openModal({
+      title: 'مسح الباركود بالكاميرا',
+      size: 'lg',
+      body: h('div', { class: 'stack' }, video, status),
+      footer: [h('button', { class: 'btn btn--ghost', attrs: { type: 'button' }, text: 'إغلاق الكاميرا', on: { click: () => modal.close() } })],
+      onClose: stop,
+    });
+
+    try {
+      const supported = typeof Detector.getSupportedFormats === 'function'
+        ? await Detector.getSupportedFormats()
+        : ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+      const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf']
+        .filter((format) => supported.includes(format));
+      if (formats.length === 0) throw new Error('لا توجد صيغ باركود مدعومة في هذا المتصفح.');
+      detector = new Detector({ formats });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      if (stopped) { stream.getTracks().forEach((track) => track.stop()); return; }
+      video.srcObject = stream;
+      await video.play();
+
+      const scanFrame = async () => {
+        if (stopped) return;
+        if (!detecting && video.readyState >= 2 && performance.now() - lastScanAt >= 120) {
+          detecting = true;
+          lastScanAt = performance.now();
+          try {
+            const results = await detector.detect(video);
+            const value = results.find((item) => item.rawValue)?.rawValue?.trim();
+            if (value && !stopped) {
+              search.input.value = value;
+              search.input.dispatchEvent(new Event('input', { bubbles: true }));
+              status.textContent = 'تمت قراءة الباركود. جارٍ البحث عن المنتج…';
+              modal.close();
+              return;
+            }
+          } catch (error) {
+            status.textContent = 'تعذرت قراءة الصورة. ثبّت الكاميرا واجعل الباركود واضحاً.';
+          } finally {
+            detecting = false;
+          }
+        }
+        if (!stopped) frame = requestAnimationFrame(scanFrame);
+      };
+      frame = requestAnimationFrame(scanFrame);
+    } catch (error) {
+      stop();
+      status.textContent = error.name === 'NotAllowedError'
+        ? 'لم يُسمح باستخدام الكاميرا. امنح المتصفح الإذن ثم حاول مجدداً.'
+        : error.message || 'تعذر تشغيل الكاميرا.';
+      toastError(status.textContent);
+    }
+  }
+
   const scanButton = h('button', {
-    class: 'pos__scan',
-    attrs: { type: 'button', 'aria-label': 'إدخال باركود يدوياً' },
-    on: {
-      click: async () => {
-        search.input.focus();
-        toastOk('وجّه ماسح الباركود إلى حقل البحث، أو اكتب الرقم يدوياً.');
-      },
-    },
-  }, icon('barcode'));
+    class: 'pos__scan btn btn--outline',
+    attrs: { type: 'button', 'aria-label': 'مسح الباركود بالكاميرا' },
+    on: { click: openCameraScanner },
+  }, icon('barcode'), h('span', { text: 'مسح بالكاميرا' }));
 
   const categoryChips = h('div');
   function drawChips() {
@@ -808,6 +893,7 @@ export async function render(context) {
   const unsubscribe = cartState.subscribe(drawCart);
   context?.onCleanup?.(() => {
     unsubscribe();
+    stopCameraScanner?.();
     cartBar.remove();
   });
 

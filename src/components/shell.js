@@ -11,6 +11,8 @@ export const NAV_ITEMS = [
   { path: '/pos', label: 'نقطة البيع', icon: 'pos' },
   { path: '/products', label: 'المنتجات', icon: 'products' },
   { path: '/inventory', label: 'المخزون', icon: 'inventory' },
+  { path: '/reorder', label: 'المطلوب شراؤها', icon: 'products' },
+  { path: '/purchases', label: 'الموردون والمشتريات', icon: 'expenses' },
   { path: '/invoices', label: 'الفواتير', icon: 'invoices' },
   { path: '/customers', label: 'العملاء', icon: 'customers' },
   { path: '/expenses', label: 'المصروفات', icon: 'expenses' },
