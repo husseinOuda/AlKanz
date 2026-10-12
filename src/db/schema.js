@@ -8,7 +8,7 @@
 
 export const DB_NAME = 'sales-system';
 export const SCHEMA_VERSION = 5;
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.3';
 
 export const STORES = {
   products: 'products',

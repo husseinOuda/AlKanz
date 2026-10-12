@@ -1,6 +1,6 @@
 {
   "name": "sales-system",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "نظام مبيعات ومخزون وفواتير عربي يعمل دون اتصال بالكامل — SPA + PWA بلا اعتماديات وقت تشغيل",
   "type": "module",
   "private": true,

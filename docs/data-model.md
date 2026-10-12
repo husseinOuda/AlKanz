@@ -222,7 +222,7 @@ expenseCategories ──< expenses             └── (refId في inventoryMo
 {
   "format": "sales-system-backup",
   "schemaVersion": 2,
-  "appVersion": "1.0.0",
+  "appVersion": "1.0.3",
   "exportedAt": "2026-08-04T12:34:56.789Z",
   "counts": { "products": 18, "sales": 25, "...": 0 },
   "data": {

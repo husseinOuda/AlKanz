@@ -31,7 +31,7 @@ const SHELL_ASSETS = [
   'assets/icons/favicon.svg',
   'assets/icons/icon-192.png',
   'assets/icons/icon-512.png',
-  'assets/icons/icon-maskable-512.png',
+  'assets/icons/alkanz_desktop_icon_256.png',
 
   'src/boot-guard.js',
   'src/app.js',

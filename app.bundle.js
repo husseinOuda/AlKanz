@@ -2194,7 +2194,7 @@
 
     const DB_NAME = 'sales-system';
     const SCHEMA_VERSION = 5;
-    const APP_VERSION = '1.0.0';
+    const APP_VERSION = '1.0.3';
 
     const STORES = {
       products: 'products',
