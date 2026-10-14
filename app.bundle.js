@@ -1,10 +1,37 @@
-/* Generated from src modules. */
+/* ملف مُولَّد آلياً — لا تعدّله يدوياً.
+ * المصدر: وحدات ES داخل مجلد src
+ * أعد التوليد بـ: node tools/build.mjs
+ *
+ * الغرض: تشغيل التطبيق عبر file:// حيث تُحجب وحدات ES.
+ * عند التشغيل من خادم (http/https) تُستخدم الوحدات الأصلية مباشرةً.
+ */
 (function () {
   'use strict';
-  var __defs = {}; var __cache = {};
+
+  var __defs = {};
+  var __cache = {};
+
+  /** يعرّف وحدة */
   function __def(id, factory) { __defs[id] = factory; }
-  function __m(id) { if (__cache[id]) return __cache[id].exports; var factory=__defs[id]; if(!factory) throw new Error('وحدة غير معرّفة داخل الحزمة: '+id); var mod={exports:{}}; __cache[id]=mod; factory(mod.exports,__m,__dyn); return mod.exports; }
-  function __dyn(id) { try{return Promise.resolve(__m(id));}catch(error){return Promise.reject(error);} }
+
+  /** يقيّم وحدة مرة واحدة ويرجع تصديراتها */
+  function __m(id) {
+    if (__cache[id]) return __cache[id].exports;
+
+    var factory = __defs[id];
+    if (!factory) throw new Error('وحدة غير معرّفة داخل الحزمة: ' + id);
+
+    var mod = { exports: {} };
+    __cache[id] = mod;          // يُسجَّل قبل التنفيذ لتحمّل الاعتماد الدائري
+    factory(mod.exports, __m, __dyn);
+    return mod.exports;
+  }
+
+  /** بديل الاستيراد الديناميكي: يرجع وعداً محلولاً بتصديرات الوحدة */
+  function __dyn(id) {
+    try { return Promise.resolve(__m(id)); }
+    catch (error) { return Promise.reject(error); }
+  }
 
   /* ================================================================== */
   /* src/app.js */
@@ -11110,6 +11137,12 @@
                   on: { click: doSuspend },
                 }, h('span', { text: 'تعليق البيع' }), icon('pause')),
                 h('button', {
+                  class: 'btn btn--outline',
+                  attrs: { type: 'button' },
+                  disabled: isEmpty || undefined,
+                  on: { click: openInvoicePreview },
+                }, h('span', { text: 'معاينة' }), icon('eye')),
+                h('button', {
                   class: 'btn btn--outline-danger',
                   attrs: { type: 'button' },
                   disabled: isEmpty || undefined,
@@ -11476,6 +11509,58 @@
           tone: 'danger',
         });
         if (ok) cartActions.clear();
+      }
+
+      function openInvoicePreview() {
+        const cart = cartState.get();
+        if (cart.lines.length === 0) return;
+        const sums = totals();
+        const summaryRow = (label, value, strong = false) =>
+          h('div', { class: ['cart__row', strong && 'cart__row--total'] },
+            h('span', { class: 'cart__label', text: label }),
+            h('span', { class: 'cart__amount' }, ltr(formatAmount(value)), ` ${symbol}`)
+          );
+
+        const modal = openModal({
+          title: 'معاينة الفاتورة',
+          size: 'lg',
+          body: h('div', { class: 'stack', style: { gap: '16px' } },
+            h('div', { class: 'cart__row' },
+              h('span', { class: 'cart__label', text: 'العميل' }),
+              h('span', { class: 'cart__amount', text: cart.customer.name })
+            ),
+            h('div', { class: 'cart__items' },
+              h('table', { class: 'table' },
+                h('thead', null, h('tr', null,
+                  h('th', { text: 'المنتج' }),
+                  h('th', { text: 'الكمية' }),
+                  h('th', { text: 'سعر الوحدة' }),
+                  h('th', { text: 'الإجمالي' })
+                )),
+                h('tbody', null, ...cart.lines.map((line) =>
+                  h('tr', null,
+                    h('td', { text: line.name }),
+                    h('td', { class: 'num' }, ltr(line.quantity)),
+                    h('td', { class: 'num' }, ltr(formatAmount(line.unitPriceMinor)), ` ${symbol}`),
+                    h('td', { class: 'num' }, ltr(formatAmount(line.unitPriceMinor * line.quantity)), ` ${symbol}`)
+                  )
+                ))
+              )
+            ),
+            h('div', { class: 'cart__totals', style: { padding: '0' } },
+              summaryRow('المجموع الفرعي', sums.subtotalMinor),
+              sums.discountMinor > 0 ? summaryRow('الخصم', sums.discountMinor) : null,
+              summaryRow('الضريبة', sums.taxMinor),
+              summaryRow('الإجمالي النهائي', sums.totalMinor, true)
+            )
+          ),
+          footer: [h('button', {
+            class: 'btn btn--primary',
+            attrs: { type: 'button' },
+            text: 'العودة إلى العربة',
+            on: { click: () => modal.close() },
+          })],
+        });
       }
 
       async function doCheckout() {
@@ -14095,5 +14180,6 @@
     Object.defineProperty(__exports, "render", { enumerable: true, get: function () { return render; } });
   });
 
+  /* نقطة الدخول */
   __m("src/app.js");
 }());

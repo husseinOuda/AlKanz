@@ -360,6 +360,12 @@ export async function render(context) {
               on: { click: doSuspend },
             }, h('span', { text: 'تعليق البيع' }), icon('pause')),
             h('button', {
+              class: 'btn btn--outline',
+              attrs: { type: 'button' },
+              disabled: isEmpty || undefined,
+              on: { click: openInvoicePreview },
+            }, h('span', { text: 'معاينة' }), icon('eye')),
+            h('button', {
               class: 'btn btn--outline-danger',
               attrs: { type: 'button' },
               disabled: isEmpty || undefined,
@@ -726,6 +732,58 @@ export async function render(context) {
       tone: 'danger',
     });
     if (ok) cartActions.clear();
+  }
+
+  function openInvoicePreview() {
+    const cart = cartState.get();
+    if (cart.lines.length === 0) return;
+    const sums = totals();
+    const summaryRow = (label, value, strong = false) =>
+      h('div', { class: ['cart__row', strong && 'cart__row--total'] },
+        h('span', { class: 'cart__label', text: label }),
+        h('span', { class: 'cart__amount' }, ltr(formatAmount(value)), ` ${symbol}`)
+      );
+
+    const modal = openModal({
+      title: 'معاينة الفاتورة',
+      size: 'lg',
+      body: h('div', { class: 'stack', style: { gap: '16px' } },
+        h('div', { class: 'cart__row' },
+          h('span', { class: 'cart__label', text: 'العميل' }),
+          h('span', { class: 'cart__amount', text: cart.customer.name })
+        ),
+        h('div', { class: 'cart__items' },
+          h('table', { class: 'table' },
+            h('thead', null, h('tr', null,
+              h('th', { text: 'المنتج' }),
+              h('th', { text: 'الكمية' }),
+              h('th', { text: 'سعر الوحدة' }),
+              h('th', { text: 'الإجمالي' })
+            )),
+            h('tbody', null, ...cart.lines.map((line) =>
+              h('tr', null,
+                h('td', { text: line.name }),
+                h('td', { class: 'num' }, ltr(line.quantity)),
+                h('td', { class: 'num' }, ltr(formatAmount(line.unitPriceMinor)), ` ${symbol}`),
+                h('td', { class: 'num' }, ltr(formatAmount(line.unitPriceMinor * line.quantity)), ` ${symbol}`)
+              )
+            ))
+          )
+        ),
+        h('div', { class: 'cart__totals', style: { padding: '0' } },
+          summaryRow('المجموع الفرعي', sums.subtotalMinor),
+          sums.discountMinor > 0 ? summaryRow('الخصم', sums.discountMinor) : null,
+          summaryRow('الضريبة', sums.taxMinor),
+          summaryRow('الإجمالي النهائي', sums.totalMinor, true)
+        )
+      ),
+      footer: [h('button', {
+        class: 'btn btn--primary',
+        attrs: { type: 'button' },
+        text: 'العودة إلى العربة',
+        on: { click: () => modal.close() },
+      })],
+    });
   }
 
   async function doCheckout() {
