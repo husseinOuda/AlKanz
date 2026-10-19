@@ -10817,6 +10817,7 @@
       let query = '';
       let categoryFilter = 'all';
       let suspendedList = suspended;
+      let selectedProductId = null;
 
       const productGrid = h('div', { class: 'product-grid' });
       const cartRoot = h('section', { class: 'cart' });
@@ -10882,6 +10883,23 @@
           return;
         }
         cartActions.add(product, 1);
+        selectedProductId = product.id;
+      }
+
+      function incrementSelectedProduct() {
+        const cart = cartState.get();
+        const selectedLine = cart.lines.find((line) => line.productId === selectedProductId);
+        const line = selectedLine || cart.lines.at(-1);
+        if (!line) return;
+        const product = active.find((item) => item.id === line.productId);
+        if (!product) return;
+        const nextQty = line.quantity + 1;
+        if (!s.allowNegativeStock && nextQty > product.quantity) {
+          toastWarn(`الكمية المتاحة من "${product.name}" هي ${product.quantity} فقط`);
+          return;
+        }
+        cartActions.setQuantity(line.productId, nextQty);
+        selectedProductId = line.productId;
       }
 
       /* -------------------------------- البحث -------------------------------- */
@@ -11725,9 +11743,21 @@
       drawProducts();
       drawCart();
 
+      const onKeyDown = (event) => {
+        if (event.key !== '+' && event.code !== 'NumpadAdd') return;
+        if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+        const target = event.target;
+        if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+        if (document.querySelector('[role="dialog"]')) return;
+        event.preventDefault();
+        incrementSelectedProduct();
+      };
+      document.addEventListener('keydown', onKeyDown);
+
       const unsubscribe = cartState.subscribe(drawCart);
       context?.onCleanup?.(() => {
         unsubscribe();
+        document.removeEventListener('keydown', onKeyDown);
         stopCameraScanner?.();
         cartBar.remove();
       });
