@@ -8171,6 +8171,7 @@
     const { notifyDataChanged } = __m("src/state/store.js");
     const { navigate, refresh } = __m("src/router.js");
     const { exportCustomers } = __m("src/services/excel.js");
+    const { printReport } = __m("src/services/print.js");
 
     async function render(context) {
       const s = settings();
@@ -8666,6 +8667,27 @@
             )
           ),
           h('div', { class: 'page__actions' },
+            h('button', {
+              class: 'btn btn--secondary',
+              attrs: { type: 'button' },
+              on: { click: () => printReport({
+                title: 'كشف الحساب',
+                subtitle: customer.phone ? `${customer.name} — ${customer.phone}` : customer.name,
+                stats: [{ label: 'الرصيد الحالي', value: `${formatAmount(balanceMinor)} ${symbol}` }],
+                tables: [{
+                  title: 'الحركات المالية',
+                  header: ['التاريخ', 'النوع', 'المرجع', 'مدين (عليه)', 'دائن (له)', 'الرصيد التراكمي'],
+                  rows: entries.map((entry) => [
+                    formatDateTime(entry.at, s.dateFormat),
+                    entry.kind === 'invoice' ? 'فاتورة' : 'دفعة',
+                    entry.label,
+                    entry.debitMinor > 0 ? `${formatAmount(entry.debitMinor)} ${symbol}` : '—',
+                    entry.creditMinor > 0 ? `${formatAmount(entry.creditMinor)} ${symbol}` : '—',
+                    `${formatAmount(entry.balanceMinor)} ${symbol}`,
+                  ]),
+                }],
+              }) },
+            }, icon('printer'), h('span', { text: 'طباعة كشف الحساب' })),
             h('span', {
               class: 'badge',
               style: {
@@ -10902,6 +10924,14 @@
         selectedProductId = line.productId;
       }
 
+      function decrementSelectedProduct() {
+        const cart = cartState.get();
+        const line = cart.lines.find((item) => item.productId === selectedProductId) || cart.lines.at(-1);
+        if (!line) return;
+        cartActions.setQuantity(line.productId, line.quantity - 1);
+        selectedProductId = line.quantity > 1 ? line.productId : null;
+      }
+
       /* -------------------------------- البحث -------------------------------- */
 
       const search = searchField({
@@ -11744,13 +11774,16 @@
       drawCart();
 
       const onKeyDown = (event) => {
-        if (event.key !== '+' && event.code !== 'NumpadAdd') return;
+        const isPlus = event.key === '+' || event.code === 'NumpadAdd';
+        const isMinus = event.key === '-' || event.key === '−' || event.code === 'NumpadSubtract';
+        if (!isPlus && !isMinus) return;
         if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
         const target = event.target;
         if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
         if (document.querySelector('[role="dialog"]')) return;
         event.preventDefault();
-        incrementSelectedProduct();
+        if (isPlus) incrementSelectedProduct();
+        else decrementSelectedProduct();
       };
       document.addEventListener('keydown', onKeyDown);
 

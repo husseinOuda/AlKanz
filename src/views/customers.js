@@ -22,6 +22,7 @@ import { toMajor } from '../utils/money.js';
 import { notifyDataChanged } from '../state/store.js';
 import { navigate, refresh } from '../router.js';
 import { exportCustomers } from '../services/excel.js';
+import { printReport } from '../services/print.js';
 
 export async function render(context) {
   const s = settings();
@@ -517,6 +518,27 @@ export async function renderStatement(context) {
         )
       ),
       h('div', { class: 'page__actions' },
+        h('button', {
+          class: 'btn btn--secondary',
+          attrs: { type: 'button' },
+          on: { click: () => printReport({
+            title: 'كشف الحساب',
+            subtitle: customer.phone ? `${customer.name} — ${customer.phone}` : customer.name,
+            stats: [{ label: 'الرصيد الحالي', value: `${formatAmount(balanceMinor)} ${symbol}` }],
+            tables: [{
+              title: 'الحركات المالية',
+              header: ['التاريخ', 'النوع', 'المرجع', 'مدين (عليه)', 'دائن (له)', 'الرصيد التراكمي'],
+              rows: entries.map((entry) => [
+                formatDateTime(entry.at, s.dateFormat),
+                entry.kind === 'invoice' ? 'فاتورة' : 'دفعة',
+                entry.label,
+                entry.debitMinor > 0 ? `${formatAmount(entry.debitMinor)} ${symbol}` : '—',
+                entry.creditMinor > 0 ? `${formatAmount(entry.creditMinor)} ${symbol}` : '—',
+                `${formatAmount(entry.balanceMinor)} ${symbol}`,
+              ]),
+            }],
+          }) },
+        }, icon('printer'), h('span', { text: 'طباعة كشف الحساب' })),
         h('span', {
           class: 'badge',
           style: {

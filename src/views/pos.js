@@ -125,6 +125,14 @@ export async function render(context) {
     selectedProductId = line.productId;
   }
 
+  function decrementSelectedProduct() {
+    const cart = cartState.get();
+    const line = cart.lines.find((item) => item.productId === selectedProductId) || cart.lines.at(-1);
+    if (!line) return;
+    cartActions.setQuantity(line.productId, line.quantity - 1);
+    selectedProductId = line.quantity > 1 ? line.productId : null;
+  }
+
   /* -------------------------------- البحث -------------------------------- */
 
   const search = searchField({
@@ -967,13 +975,16 @@ export async function render(context) {
   drawCart();
 
   const onKeyDown = (event) => {
-    if (event.key !== '+' && event.code !== 'NumpadAdd') return;
+    const isPlus = event.key === '+' || event.code === 'NumpadAdd';
+    const isMinus = event.key === '-' || event.key === '−' || event.code === 'NumpadSubtract';
+    if (!isPlus && !isMinus) return;
     if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
     const target = event.target;
     if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
     if (document.querySelector('[role="dialog"]')) return;
     event.preventDefault();
-    incrementSelectedProduct();
+    if (isPlus) incrementSelectedProduct();
+    else decrementSelectedProduct();
   };
   document.addEventListener('keydown', onKeyDown);
 
