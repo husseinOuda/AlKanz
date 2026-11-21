@@ -48,7 +48,7 @@ export async function render(context={}) {
     const rows=suppliers.map(s=>{const l=ledger.get(s.id)||{balanceMinor:0,purchasesMinor:0};return h('tr',null,
       h('td',{text:s.name}),h('td',{text:s.phone||'—'}),h('td',{text:s.email||'—'}),h('td',{text:money(l.balanceMinor)+' '+symbol}),h('td',{text:money(l.purchasesMinor)+' '+symbol}),
       h('td',{text:l.lastPurchaseAt?formatDate(l.lastPurchaseAt,prefs.dateFormat):'—'}),
-      h('td',null,h('button',{class:'btn btn--sm btn--ghost',attrs:{type:'button'},text:'تسجيل دفعة',on:{click:()=>payment(s)}})));});
+      h('td',null,h('a',{class:'btn btn--sm btn--ghost',href:`#/suppliers/${s.id}`,text:'عرض الحساب'}),h('button',{class:'btn btn--sm btn--ghost',attrs:{type:'button'},text:'تسجيل دفعة',on:{click:()=>payment(s)}})));});
     const orderRows=orders.map(o=>{const sup=suppliers.find(x=>x.id===o.supplierId);return h('tr',null,
       h('td',{text:o.number}),h('td',{text:sup?.name||'—'}),h('td',{text:o.invoiceNumber||'—'}),h('td',{text:o.status==='received'?'تم الاستلام':'بانتظار الاستلام'}),
       h('td',null,o.status==='ordered'?h('button',{class:'btn btn--sm btn--primary',attrs:{type:'button'},text:'استلام وتحديث المخزون',on:{click:()=>receive(o)}}):h('span',{text:o.purchaseId||'—'})));});

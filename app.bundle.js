@@ -3562,6 +3562,7 @@
     const listSuppliers = () => tx(STORES.suppliers,'readonly',s=>getAll(s[STORES.suppliers]));
     async function saveSupplier(value){const stamp=toISO();const rec={id:value.id||uid('sup'),name:value.name.trim(),phone:value.phone||'',email:value.email||'',address:value.address||'',note:value.note||'',createdAt:value.createdAt||stamp,updatedAt:stamp};await tx(STORES.suppliers,'readwrite',s=>put(s[STORES.suppliers],rec));return rec;}
     async function supplierLedger(){const map=new Map();await tx([STORES.purchases,STORES.purchasePayments], 'readonly', async s=>{for(const p of await getAll(s[STORES.purchases])){if(p.status!=='received')continue;let x=map.get(p.supplierId)||{balanceMinor:0,purchasesMinor:0,lastPurchaseAt:null};x.purchasesMinor+=p.totalMinor;x.balanceMinor+=p.totalMinor;if(!x.lastPurchaseAt||p.createdAt>x.lastPurchaseAt)x.lastPurchaseAt=p.createdAt;map.set(p.supplierId,x)}for(const p of await getAll(s[STORES.purchasePayments])){let x=map.get(p.supplierId)||{balanceMinor:0,purchasesMinor:0,lastPurchaseAt:null};x.balanceMinor-=p.amountMinor;map.set(p.supplierId,x)}});return map;}
+    async function supplierStatement(supplierId){return tx([STORES.suppliers,STORES.purchases,STORES.purchasePayments],'readonly',async s=>{const supplier=await get(s[STORES.suppliers],supplierId);if(!supplier)return null;const purchases=(await getAll(s[STORES.purchases])).filter(x=>x.supplierId===supplierId&&x.status==='received');const payments=(await getAll(s[STORES.purchasePayments])).filter(x=>x.supplierId===supplierId);const entries=[...purchases.map(x=>({at:x.createdAt,kind:'purchase',label:x.supplierInvoiceNumber||x.number,debitMinor:x.totalMinor,creditMinor:0})),...payments.map(x=>({at:x.createdAt,kind:'payment',label:x.reference||x.note||'دفعة',debitMinor:0,creditMinor:x.amountMinor}))].sort((a,b)=>a.at.localeCompare(b.at));let balanceMinor=0;for(const entry of entries){balanceMinor+=entry.debitMinor-entry.creditMinor;entry.balanceMinor=balanceMinor;}return {supplier,entries,balanceMinor};});}
     const listOrders=()=>tx(STORES.purchaseOrders,'readonly',s=>getAll(s[STORES.purchaseOrders])).then(a=>a.sort((x,y)=>y.createdAt.localeCompare(x.createdAt)));
     function nextInvoiceNumber(orders){return String(orders.reduce((max,o)=>{const number=Number(o.invoiceNumber);return Number.isSafeInteger(number)&&number>max?number:max;},0)+1);}
     async function nextSupplierInvoiceNumber(){const orders=await tx(STORES.purchaseOrders,'readonly',s=>getAll(s[STORES.purchaseOrders]));return nextInvoiceNumber(orders);}
@@ -3573,6 +3574,7 @@
     Object.defineProperty(__exports, "listSuppliers", { enumerable: true, get: function () { return listSuppliers; } });
     Object.defineProperty(__exports, "saveSupplier", { enumerable: true, get: function () { return saveSupplier; } });
     Object.defineProperty(__exports, "supplierLedger", { enumerable: true, get: function () { return supplierLedger; } });
+    Object.defineProperty(__exports, "supplierStatement", { enumerable: true, get: function () { return supplierStatement; } });
     Object.defineProperty(__exports, "listOrders", { enumerable: true, get: function () { return listOrders; } });
     Object.defineProperty(__exports, "nextSupplierInvoiceNumber", { enumerable: true, get: function () { return nextSupplierInvoiceNumber; } });
     Object.defineProperty(__exports, "createOrder", { enumerable: true, get: function () { return createOrder; } });
@@ -4418,6 +4420,7 @@
       route('/inventory', screen(() => __dyn("src/views/inventory.js")), { title: 'المخزون' });
       route('/reorder', screen(() => __dyn("src/views/reorder.js")), { title: 'المنتجات المطلوب شراؤها' });
       route('/purchases', screen(() => __dyn("src/views/purchases.js")), { title: 'الموردون والمشتريات' });
+      route('/suppliers/:id', screen(() => __dyn("src/views/supplier-statement.js")), { title: 'كشف حساب المورد' });
 
       route('/invoices', screen(() => __dyn("src/views/invoices.js")), { title: 'الفواتير' });
       route('/invoices/:id', screen(() => __dyn("src/views/invoice-detail.js")), { title: 'تفاصيل الفاتورة' });
@@ -12877,7 +12880,7 @@
         const rows=suppliers.map(s=>{const l=ledger.get(s.id)||{balanceMinor:0,purchasesMinor:0};return h('tr',null,
           h('td',{text:s.name}),h('td',{text:s.phone||'—'}),h('td',{text:s.email||'—'}),h('td',{text:money(l.balanceMinor)+' '+symbol}),h('td',{text:money(l.purchasesMinor)+' '+symbol}),
           h('td',{text:l.lastPurchaseAt?formatDate(l.lastPurchaseAt,prefs.dateFormat):'—'}),
-          h('td',null,h('button',{class:'btn btn--sm btn--ghost',attrs:{type:'button'},text:'تسجيل دفعة',on:{click:()=>payment(s)}})));});
+          h('td',null,h('a',{class:'btn btn--sm btn--ghost',href:`#/suppliers/${s.id}`,text:'عرض الحساب'}),h('button',{class:'btn btn--sm btn--ghost',attrs:{type:'button'},text:'تسجيل دفعة',on:{click:()=>payment(s)}})));});
         const orderRows=orders.map(o=>{const sup=suppliers.find(x=>x.id===o.supplierId);return h('tr',null,
           h('td',{text:o.number}),h('td',{text:sup?.name||'—'}),h('td',{text:o.invoiceNumber||'—'}),h('td',{text:o.status==='received'?'تم الاستلام':'بانتظار الاستلام'}),
           h('td',null,o.status==='ordered'?h('button',{class:'btn btn--sm btn--primary',attrs:{type:'button'},text:'استلام وتحديث المخزون',on:{click:()=>receive(o)}}):h('span',{text:o.purchaseId||'—'})));});
@@ -14298,6 +14301,48 @@
         shift ? card({ title: 'حركة الوردية الحالية', body: h('div', { class: 'stack' }, detailRow('فُتحت في', ltr(formatDateTime(shift.openedAt, s.dateFormat))), detailRow('الرصيد الافتتاحي', money(shift.openingMinor)), detailRow('تحصيلات العملاء النقدية', money(summary.customerCashMinor)), detailRow('الرصد المتوقع', money(summary.expectedMinor))) }) : null,
         card({ title: 'سجل الورديات', body: h('div', { class: 'stack' }, ...history.map((item) => detailRow(`${item.status === 'open' ? 'وردية مفتوحة' : 'وردية مغلقة'} — ${formatDateTime(item.openedAt, s.dateFormat)}`, item.status === 'closed' ? money(item.differenceMinor) : 'قيد العمل'))) })
       );
+    }
+
+
+    Object.defineProperty(__exports, "render", { enumerable: true, get: function () { return render; } });
+  });
+
+  /* ================================================================== */
+  /* src/views/supplier-statement.js */
+  __def("src/views/supplier-statement.js", function (__exports, __m, __dyn) {
+    const { h } = __m("src/utils/dom.js");
+    const { formatAmount } = __m("src/utils/format.js");
+    const { formatDateTime } = __m("src/utils/dates.js");
+    const { supplierStatement } = __m("src/repositories/purchasing.js");
+    const { printReport } = __m("src/services/print.js");
+    const { settings } = __m("src/repositories/settings.js");
+
+    async function render({ params } = {}) {
+      const data = await supplierStatement(params?.id);
+      if (!data) return h('section', { class: 'card card__body' }, h('h2', { text: 'المورد غير موجود' }), h('a', { href: '#/purchases', text: 'العودة إلى الموردين' }));
+      const prefs = settings();
+      const symbol = prefs.currencySymbol || '';
+      const money = (n) => `${formatAmount(n)} ${symbol}`.trim();
+      const rows = data.entries.map((e) => h('tr', null,
+        h('td', { text: formatDateTime(e.at, prefs.dateFormat) }),
+        h('td', { text: e.kind === 'purchase' ? 'فاتورة شراء' : 'دفعة' }),
+        h('td', { text: e.label }),
+        h('td', { text: e.debitMinor ? money(e.debitMinor) : '—' }),
+        h('td', { text: e.creditMinor ? money(e.creditMinor) : '—' }),
+        h('td', { text: money(e.balanceMinor) })));
+      return h('div', { class: 'page stack' },
+        h('div', { class: 'page-header' }, h('div', null, h('h2', { text: `كشف حساب ${data.supplier.name}` }), h('p', { class: 'muted', text: data.supplier.phone || '' })),
+          h('div', { class: 'row' },
+            h('a', { class: 'btn btn--outline', href: '#/purchases', text: 'العودة إلى الموردين' }),
+            h('button', { class: 'btn btn--secondary', attrs: { type: 'button' }, text: 'طباعة كشف الحساب', on: { click: () => printReport({
+              title: 'كشف حساب المورد', subtitle: [data.supplier.name, data.supplier.phone].filter(Boolean).join(' — '),
+              stats: [{ label: 'الرصيد الحالي', value: money(data.balanceMinor) }],
+              tables: [{ title: 'الحركات المالية', header: ['التاريخ', 'النوع', 'المرجع', 'مدين (مشتريات)', 'دائن (دفعات)', 'الرصيد التراكمي'], rows: data.entries.map((e) => [formatDateTime(e.at, prefs.dateFormat), e.kind === 'purchase' ? 'فاتورة شراء' : 'دفعة', e.label, e.debitMinor ? money(e.debitMinor) : '—', e.creditMinor ? money(e.creditMinor) : '—', money(e.balanceMinor)]) }],
+            }) } }))),
+        h('section', { class: 'card card__body' }, h('h3', { text: 'الحركات المالية' }),
+          h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
+            h('thead', null, h('tr', null, ...['التاريخ', 'النوع', 'المرجع', 'مدين (مشتريات)', 'دائن (دفعات)', 'الرصيد التراكمي'].map((x) => h('th', { text: x })))),
+            h('tbody', null, ...rows)))));
     }
 
 

@@ -44,6 +44,7 @@ export function registerRoutes() {
   route('/inventory', screen(() => import('./views/inventory.js')), { title: 'المخزون' });
   route('/reorder', screen(() => import('./views/reorder.js')), { title: 'المنتجات المطلوب شراؤها' });
   route('/purchases', screen(() => import('./views/purchases.js')), { title: 'الموردون والمشتريات' });
+  route('/suppliers/:id', screen(() => import('./views/supplier-statement.js')), { title: 'كشف حساب المورد' });
 
   route('/invoices', screen(() => import('./views/invoices.js')), { title: 'الفواتير' });
   route('/invoices/:id', screen(() => import('./views/invoice-detail.js')), { title: 'تفاصيل الفاتورة' });
